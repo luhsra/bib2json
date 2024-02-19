@@ -16,6 +16,8 @@ Directly from git:
 cargo install --git ssh://git@scm.sra.uni-hannover.de/infra/bib2json.git
 ```
 
+The binary is located in `~/.cargo/bin/`. You may want to add in to your PATH.
+
 ## Usage
 
 ```
