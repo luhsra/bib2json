@@ -1,5 +1,5 @@
 [package]
-name = "bibtex2json"
+name = "bib2json"
 version = "0.1.0"
 edition = "2021"
 

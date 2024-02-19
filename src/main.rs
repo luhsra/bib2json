@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::stdout;
-use std::io::BufWriter;
+use std::io::{stdout, BufWriter, Write};
 use std::path::PathBuf;
 
-use biblatex::Bibliography;
-use biblatex::Person;
+use biblatex::{Bibliography, Entry, Person};
 use clap::Parser;
 use serde::Serialize;
-use serde_json::Value;
 
+/// Parse bibtex into JSON.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -37,50 +35,45 @@ impl From<Person> for SRAPerson {
 }
 
 #[derive(Serialize)]
-struct Entry {
+struct SRAEntry {
+    id: String,
     authors: Vec<SRAPerson>,
+    entry_type: String,
+    bibtex: String,
 
     #[serde(flatten)]
-    other: HashMap<String, Value>,
+    other: HashMap<String, String>,
+}
+
+impl From<&Entry> for SRAEntry {
+    fn from(e: &Entry) -> Self {
+        SRAEntry {
+            id: e.key.to_owned(),
+            authors: e.author().map_or_else(
+                |_| Vec::new(),
+                |authors| authors.into_iter().map(SRAPerson::from).collect(),
+            ),
+            entry_type: e.entry_type.to_string(),
+            bibtex: e.to_biblatex_string(),
+            other: {
+                e.fields
+                    .iter()
+                    .map(|(key, value)| (key.to_owned(), value.iter().map(|v| v.v.get()).collect()))
+                    .collect()
+            },
+        }
+    }
 }
 
 #[derive(Serialize)]
 struct SRABib {
-    entries: HashMap<String, Entry>,
+    #[serde(flatten)]
+    entries: HashMap<String, SRAEntry>,
 }
 
 impl SRABib {
     fn from_bib(bib: &Bibliography) -> Self {
-        let entries = bib
-            .iter()
-            .map(|e| {
-                (
-                    e.key.clone(),
-                    Entry {
-                        authors: e.author().map_or_else(
-                            |_| Vec::new(),
-                            |authors| authors.into_iter().map(SRAPerson::from).collect(),
-                        ),
-                        other: {
-                            let mut map = HashMap::new();
-                            for (key, value) in e.fields.iter() {
-                                if key == "authors" {
-                                    continue;
-                                }
-
-                                let mut v = String::new();
-                                for bar in value {
-                                    v.push_str(bar.v.get())
-                                }
-
-                                map.insert(key.to_owned(), Value::String(v));
-                            }
-                            map
-                        },
-                    },
-                )
-            })
-            .collect();
+        let entries = bib.iter().map(|e| (e.key.clone(), e.into())).collect();
 
         Self { entries }
     }
@@ -94,14 +87,13 @@ fn main() -> Result<(), std::io::Error> {
 
     let sra_bib = SRABib::from_bib(&bibliography);
 
-    if let Some(output) = args.output {
+    let writer: BufWriter<Box<dyn Write>> = if let Some(output) = args.output {
         let file = File::create(output)?;
-        let writer = BufWriter::new(file);
-        serde_json::to_writer(writer, &sra_bib)?;
+        BufWriter::new(Box::new(file))
     } else {
-        let writer = BufWriter::new(stdout());
-        serde_json::to_writer(writer, &sra_bib)?;
-    }
+        BufWriter::new(Box::new(stdout()))
+    };
+    serde_json::to_writer(writer, &sra_bib)?;
 
     Ok(())
 }

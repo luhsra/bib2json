@@ -51,6 +51,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bib2json"
+version = "0.1.0"
+dependencies = [
+ "biblatex",
+ "clap",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "biblatex"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -61,16 +71,6 @@ dependencies = [
  "strum",
  "unicode-normalization",
  "unscanny",
-]
-
-[[package]]
-name = "bibtex2json"
-version = "0.1.0"
-dependencies = [
- "biblatex",
- "clap",
- "serde",
- "serde_json",
 ]
 
 [[package]]
