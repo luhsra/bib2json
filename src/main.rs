@@ -7,7 +7,7 @@ use biblatex::{Bibliography, Entry, Person};
 use clap::Parser;
 use serde::Serialize;
 
-/// Parse bibtex into JSON.
+/// Parse bibtex into JSON (using the Typst biblatex crate).
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
