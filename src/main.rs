@@ -29,7 +29,7 @@ impl From<Person> for SRAPerson {
     fn from(person: Person) -> Self {
         SRAPerson {
             first_name: person.given_name,
-            last_name: person.name,
+            last_name: vec![person.prefix, person.name, person.suffix].into_iter().filter(|p| !p.is_empty()).collect::<Vec<String>>().join(" "),
         }
     }
 }
@@ -38,6 +38,7 @@ impl From<Person> for SRAPerson {
 struct SRAEntry {
     id: String,
     authors: Vec<SRAPerson>,
+    editors: Vec<SRAPerson>,
     entry_type: String,
     bibtex: String,
 
@@ -52,6 +53,10 @@ impl From<&Entry> for SRAEntry {
             authors: e.author().map_or_else(
                 |_| Vec::new(),
                 |authors| authors.into_iter().map(SRAPerson::from).collect(),
+            ),
+            editors: e.editors().map_or_else(
+                |_| Vec::new(),
+                |editors| editors.into_iter().flat_map(|tup| tup.0).map(SRAPerson::from).collect(),
             ),
             entry_type: e.entry_type.to_string(),
             bibtex: e.to_biblatex_string(),
