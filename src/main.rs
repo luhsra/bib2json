@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{stdout, BufWriter, Write};
 use std::path::PathBuf;
 
-use biblatex::{Bibliography, Entry, Person};
+use biblatex::{Bibliography, Chunk, Entry, Person};
 use clap::Parser;
 use serde::Serialize;
 
@@ -29,7 +29,11 @@ impl From<Person> for SRAPerson {
     fn from(person: Person) -> Self {
         SRAPerson {
             first_name: person.given_name,
-            last_name: vec![person.prefix, person.name, person.suffix].into_iter().filter(|p| !p.is_empty()).collect::<Vec<String>>().join(" "),
+            last_name: [person.prefix, person.name, person.suffix]
+                .into_iter()
+                .filter(|p| !p.is_empty())
+                .collect::<Vec<String>>()
+                .join(" "),
         }
     }
 }
@@ -46,8 +50,28 @@ struct SRAEntry {
     other: HashMap<String, String>,
 }
 
-impl From<&Entry> for SRAEntry {
-    fn from(e: &Entry) -> Self {
+impl SRAEntry {
+    fn entry_to_sra_fields(from: &Entry) -> HashMap<String, String> {
+        from.fields.iter()
+            .map(|(key, value)| {
+                (
+                    key.to_owned(),
+                    value
+                        .iter()
+                        .map(|v| {
+                            if let Chunk::Math(s) = &v.v {
+                                format!("${s}$")
+                            } else {
+                                v.v.get().to_owned()
+                            }
+                        })
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn from(e: &Entry, bib: &Bibliography) -> Self {
         SRAEntry {
             id: e.key.to_owned(),
             authors: e.author().map_or_else(
@@ -56,15 +80,21 @@ impl From<&Entry> for SRAEntry {
             ),
             editors: e.editors().map_or_else(
                 |_| Vec::new(),
-                |editors| editors.into_iter().flat_map(|tup| tup.0).map(SRAPerson::from).collect(),
+                |editors| {
+                    editors
+                        .into_iter()
+                        .flat_map(|tup| tup.0)
+                        .map(SRAPerson::from)
+                        .collect()
+                },
             ),
             entry_type: e.entry_type.to_string(),
             bibtex: e.to_biblatex_string(),
             other: {
-                e.fields
-                    .iter()
-                    .map(|(key, value)| (key.to_owned(), value.iter().map(|v| v.v.get()).collect()))
-                    .collect()
+                let mut x = HashMap::new();
+                x.extend(e.parents().unwrap().iter().map(|e| bib.get(e).unwrap()).flat_map(Self::entry_to_sra_fields));
+                x.extend(Self::entry_to_sra_fields(e));
+                x
             },
         }
     }
@@ -78,7 +108,10 @@ struct SRABib {
 
 impl SRABib {
     fn from_bib(bib: &Bibliography) -> Self {
-        let entries = bib.iter().map(|e| (e.key.clone(), e.into())).collect();
+        let entries = bib
+            .iter()
+            .map(|e| (e.key.clone(), SRAEntry::from(e, bib)))
+            .collect();
 
         Self { entries }
     }
