@@ -8,9 +8,9 @@ edition = "2021"
 [dependencies]
 # biblatex = "0.9.1"
 biblatex = { git = "https://github.com/typst/biblatex", branch="main" }
-clap = { version = "4.5.1", features = ["derive"] }
-serde = { version = "1.0.196", features = ["derive"] }
-serde_json = "1"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [profile.dev.package."*"]
 opt-level = 3
