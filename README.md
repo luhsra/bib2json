@@ -18,6 +18,12 @@ cargo install --git https://github.com/luhsra/bib2json.git
 
 The binary is located in `~/.cargo/bin/`. You may want to add in to your PATH.
 
+### Prebuild Binaries
+
+- [Linux](https://github.com/luhsra/bib2json/releases/latest/download/ubuntu-latest-bib2json)
+- [Windows](https://github.com/luhsra/bib2json/releases/latest/download/windows-latest-bib2json.exe)
+- [MacOS](https://github.com/luhsra/bib2json/releases/latest/download/macos-latest-bib2json)
+
 ## Usage
 
 ```
