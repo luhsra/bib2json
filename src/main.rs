@@ -67,27 +67,30 @@ impl SRAEntry {
     fn from(e: &Entry, bib: &Bibliography) -> Self {
         SRAEntry {
             id: e.key.to_owned(),
-            authors: e.author().map_or(Vec::new(), |authors| {
-                authors.into_iter().map(SRAPerson::from).collect()
-            }),
-            editors: e.editors().map_or(Vec::new(), |editors| {
-                editors
-                    .into_iter()
-                    .flat_map(|tup| tup.0)
-                    .map(SRAPerson::from)
-                    .collect()
-            }),
+            authors: e
+                .author()
+                .unwrap_or_default()
+                .into_iter()
+                .map(SRAPerson::from)
+                .collect(),
+            editors: e
+                .editors()
+                .unwrap_or_default()
+                .into_iter()
+                .flat_map(|tup| tup.0)
+                .map(SRAPerson::from)
+                .collect(),
             entry_type: e.entry_type.to_string(),
             bibtex: e.to_biblatex_string(),
-            other: BTreeMap::from_iter(
-                e.parents()
-                    .unwrap()
-                    .iter()
-                    .map(|e| bib.get(e).unwrap())
-                    .flat_map(Self::entry_to_sra_fields)
-                    // Own fields overwrite parent ones
-                    .chain(Self::entry_to_sra_fields(e)),
-            ),
+            other: e
+                .parents() // Add xref and crossref fields
+                .unwrap()
+                .iter()
+                .map(|e| bib.get(e).unwrap())
+                .flat_map(Self::entry_to_sra_fields)
+                // Own fields overwrite parent ones
+                .chain(Self::entry_to_sra_fields(e))
+                .collect(),
         }
     }
 }
