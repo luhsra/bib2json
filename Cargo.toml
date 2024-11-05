@@ -3,11 +3,8 @@ name = "bib2json"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-# biblatex = "0.9.1"
-biblatex = { git = "https://github.com/typst/biblatex", branch="main" }
+biblatex = { version = "0.10" }
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

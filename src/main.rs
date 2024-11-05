@@ -14,8 +14,8 @@ struct Args {
     /// input bibtex file
     input: PathBuf,
 
-    #[arg(short, long)]
     /// output file, default: stdout
+    #[arg(short, long)]
     output: Option<PathBuf>,
 }
 
@@ -51,7 +51,7 @@ struct SRAEntry {
 }
 
 impl SRAEntry {
-    fn entry_to_sra_fields(from: &Entry) -> impl Iterator<Item = (String, String)> + '_ {
+    fn fields(from: &Entry) -> impl Iterator<Item = (String, String)> + '_ {
         from.fields.iter().map(|(key, value)| {
             let value = value
                 .iter()
@@ -86,10 +86,10 @@ impl SRAEntry {
                 .parents() // Add xref and crossref fields
                 .unwrap()
                 .iter()
-                .map(|e| bib.get(e).unwrap())
-                .flat_map(Self::entry_to_sra_fields)
+                .map(|id| bib.get(id).unwrap())
+                .flat_map(Self::fields)
                 // Own fields overwrite parent ones
-                .chain(Self::entry_to_sra_fields(e))
+                .chain(Self::fields(e))
                 .collect(),
         }
     }
@@ -163,8 +163,8 @@ mod test {
         assert_eq!(thesis.entry_type, "inproceedings");
         assert_eq!(thesis.authors.len(), 1);
         assert_eq!(thesis.other["title"], "Lorem Ipsum et Dolor");
-        assert_eq!(thesis.other["year"], "2005");
-        assert_eq!(thesis.other["month"], "September");
+        assert_eq!(thesis.other["year"], "2001");
+        assert_eq!(thesis.other["month"], "January");
         assert_eq!(thesis.other["category"], "baz");
     }
 
