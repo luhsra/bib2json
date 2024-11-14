@@ -2,8 +2,7 @@ from pathlib import Path
 import bibtexparser
 import sys
 import time
-import json
-from subprocess import check_output
+import bib2
 
 file = sys.argv[1]
 
@@ -14,8 +13,7 @@ old_bib = bibtexparser.load(Path(sys.argv[1]).open(), parser).entries_dict
 print(f"bibtexparser {len(old_bib)} entries: {time.time() - t_start}")
 
 t_start = time.time()
-out = check_output([Path(__file__).parent.parent / "target/release/bib2json", sys.argv[1]])
-new_bib = json.loads(out)
-print(f"bibtexparser {len(new_bib)} entries: {time.time() - t_start}")
+new_bib = bib2.loads(Path(sys.argv[1]).read_text())
+print(f"bib2json {len(new_bib)} entries: {time.time() - t_start}")
 
 assert old_bib.keys() == new_bib.keys()

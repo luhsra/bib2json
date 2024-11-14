@@ -1,30 +1,56 @@
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::{stdout, BufWriter, Write};
-use std::path::PathBuf;
+use std::fmt;
 
-use biblatex::{Bibliography, Chunk, Entry, Person};
-use clap::Parser;
-use serde::Serialize;
+use biblatex::{Bibliography, Chunk, Entry, ParseError, Person};
+use pyo3::prelude::*;
+use pyo3::types::{IntoPyDict, PyDict};
 
-/// Parse bibtex into JSON (using the Typst biblatex crate).
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// input bibtex file
-    input: PathBuf,
-
-    /// output file, default: stdout
-    #[arg(short, long)]
-    output: Option<PathBuf>,
+/// The bib2 module.
+#[pymodule]
+fn bib2(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(loads, m)?)?;
+    Ok(())
 }
 
-#[derive(Serialize, Debug)]
+/// Load a BibTeX file from a file path.
+#[pyfunction]
+fn loads<'py>(py: Python<'py>, content: &str) -> PyResult<Bound<'py, PyDict>> {
+    let sra_bib = SRABib::loads(content)?;
+    Ok(sra_bib.into_py_dict_bound(py))
+}
+
+#[derive(Debug)]
+struct Error(ParseError);
+impl std::error::Error for Error {}
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+impl From<Error> for PyErr {
+    fn from(e: Error) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
+    }
+}
+impl From<ParseError> for Error {
+    fn from(e: ParseError) -> Self {
+        Error(e)
+    }
+}
+
+#[derive(Debug)]
 struct SRAPerson {
     first_name: String,
     last_name: String,
 }
-
+impl ToPyObject for SRAPerson {
+    fn to_object(&self, py: Python<'_>) -> PyObject {
+        let dict = PyDict::new_bound(py);
+        dict.set_item("first_name", &self.first_name).unwrap();
+        dict.set_item("last_name", &self.last_name).unwrap();
+        dict.into()
+    }
+}
 impl From<Person> for SRAPerson {
     fn from(person: Person) -> Self {
         SRAPerson {
@@ -38,7 +64,7 @@ impl From<Person> for SRAPerson {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Debug)]
 struct SRAEntry {
     id: String,
     authors: Vec<SRAPerson>,
@@ -46,10 +72,22 @@ struct SRAEntry {
     entry_type: String,
     bibtex: String,
 
-    #[serde(flatten)]
     other: BTreeMap<String, String>,
 }
-
+impl ToPyObject for SRAEntry {
+    fn to_object(&self, py: Python<'_>) -> PyObject {
+        let dict = PyDict::new_bound(py);
+        for (key, value) in &self.other {
+            dict.set_item(key, value).unwrap();
+        }
+        dict.set_item("id", &self.id).unwrap();
+        dict.set_item("authors", &self.authors).unwrap();
+        dict.set_item("editors", &self.editors).unwrap();
+        dict.set_item("entry_type", &self.entry_type).unwrap();
+        dict.set_item("bibtex", &self.bibtex).unwrap();
+        dict.into()
+    }
+}
 impl SRAEntry {
     fn fields(from: &Entry) -> impl Iterator<Item = (String, String)> + '_ {
         from.fields.iter().map(|(key, value)| {
@@ -65,6 +103,16 @@ impl SRAEntry {
     }
 
     fn from(e: &Entry, bib: &Bibliography) -> Self {
+        // also include crossrefs in bibtex export
+        let mut bibtex = e.to_biblatex_string();
+        if let Ok(parents) = e.parents() {
+            for key in parents {
+                if let Some(parent) = bib.get(&key) {
+                    bibtex += "\n\n";
+                    bibtex += &parent.to_biblatex_string();
+                }
+            }
+        }
         SRAEntry {
             id: e.key.to_owned(),
             authors: e
@@ -81,7 +129,7 @@ impl SRAEntry {
                 .map(SRAPerson::from)
                 .collect(),
             entry_type: e.entry_type.to_string(),
-            bibtex: e.to_biblatex_string(),
+            bibtex,
             other: e
                 .parents() // Add xref and crossref fields
                 .unwrap()
@@ -95,12 +143,19 @@ impl SRAEntry {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Debug)]
 struct SRABib {
-    #[serde(flatten)]
     entries: BTreeMap<String, SRAEntry>,
 }
-
+impl IntoPyDict for SRABib {
+    fn into_py_dict_bound(self, py: Python) -> Bound<'_, PyDict> {
+        let dict = PyDict::new_bound(py);
+        for (key, value) in self.entries {
+            dict.set_item(key, value).unwrap();
+        }
+        dict
+    }
+}
 impl SRABib {
     fn new(bib: &Bibliography) -> Self {
         let entries = bib
@@ -110,25 +165,10 @@ impl SRABib {
 
         Self { entries }
     }
-}
-
-fn main() -> Result<(), std::io::Error> {
-    let args = Args::parse();
-
-    let content = std::fs::read_to_string(args.input)?;
-    let bibliography = Bibliography::parse(&content).unwrap();
-
-    let sra_bib = SRABib::new(&bibliography);
-
-    let writer: Box<dyn Write> = if let Some(output) = args.output {
-        let file = File::create(output)?;
-        Box::new(file)
-    } else {
-        Box::new(stdout())
-    };
-    serde_json::to_writer(BufWriter::new(writer), &sra_bib)?;
-
-    Ok(())
+    fn loads(content: &str) -> Result<Self, Error> {
+        let bibliography = Bibliography::parse(content)?;
+        Ok(Self::new(&bibliography))
+    }
 }
 
 #[cfg(test)]
