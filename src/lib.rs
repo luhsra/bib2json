@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 use std::fmt;
 
 use biblatex::{Bibliography, Chunk, Entry, ParseError, Person};
 use pyo3::prelude::*;
-use pyo3::types::{IntoPyDict, PyDict};
+use pyo3::types::PyDict;
 
 /// The bib2 module.
 #[pymodule]
@@ -14,9 +15,9 @@ fn bib2(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 /// Load a BibTeX file from a file path.
 #[pyfunction]
-fn loads<'py>(py: Python<'py>, content: &str) -> PyResult<Bound<'py, PyDict>> {
+fn loads(content: &str) -> PyResult<SRABib> {
     let sra_bib = SRABib::loads(content)?;
-    Ok(sra_bib.into_py_dict_bound(py))
+    Ok(sra_bib)
 }
 
 #[derive(Debug)]
@@ -43,12 +44,15 @@ struct SRAPerson {
     first_name: String,
     last_name: String,
 }
-impl ToPyObject for SRAPerson {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
-        let dict = PyDict::new_bound(py);
+impl<'py> IntoPyObject<'py> for SRAPerson {
+    type Target = PyDict;
+    type Output = Bound<'py, PyDict>;
+    type Error = Infallible;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        let dict = PyDict::new(py);
         dict.set_item("first_name", &self.first_name).unwrap();
         dict.set_item("last_name", &self.last_name).unwrap();
-        dict.into()
+        Ok(dict)
     }
 }
 impl From<Person> for SRAPerson {
@@ -74,18 +78,21 @@ struct SRAEntry {
 
     other: BTreeMap<String, String>,
 }
-impl ToPyObject for SRAEntry {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
-        let dict = PyDict::new_bound(py);
-        for (key, value) in &self.other {
+impl<'py> IntoPyObject<'py> for SRAEntry {
+    type Target = PyDict;
+    type Output = Bound<'py, PyDict>;
+    type Error = Infallible;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        let dict = PyDict::new(py);
+        for (key, value) in self.other {
             dict.set_item(key, value).unwrap();
         }
-        dict.set_item("id", &self.id).unwrap();
-        dict.set_item("authors", &self.authors).unwrap();
-        dict.set_item("editors", &self.editors).unwrap();
-        dict.set_item("entry_type", &self.entry_type).unwrap();
-        dict.set_item("bibtex", &self.bibtex).unwrap();
-        dict.into()
+        dict.set_item("id", self.id).unwrap();
+        dict.set_item("authors", self.authors).unwrap();
+        dict.set_item("editors", self.editors).unwrap();
+        dict.set_item("entry_type", self.entry_type).unwrap();
+        dict.set_item("bibtex", self.bibtex).unwrap();
+        Ok(dict)
     }
 }
 impl SRAEntry {
@@ -147,13 +154,16 @@ impl SRAEntry {
 struct SRABib {
     entries: BTreeMap<String, SRAEntry>,
 }
-impl IntoPyDict for SRABib {
-    fn into_py_dict_bound(self, py: Python) -> Bound<'_, PyDict> {
-        let dict = PyDict::new_bound(py);
+impl<'py> IntoPyObject<'py> for SRABib {
+    type Target = PyDict;
+    type Output = Bound<'py, PyDict>;
+    type Error = Infallible;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        let dict = PyDict::new(py);
         for (key, value) in self.entries {
             dict.set_item(key, value).unwrap();
         }
-        dict
+        Ok(dict)
     }
 }
 impl SRABib {
